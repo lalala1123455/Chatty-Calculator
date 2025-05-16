@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>おしゃべり電卓</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --button: #e5e7eb;
+      --button-hover: #d1d5db;
+      --operator: #fca5a5;
+      --operator-hover: #f87171;
+      --equal: #6ee7b7;
+      --equal-hover: #34d399;
+      --display: #111827;
+      --display-text: #fefce8;
+      --chat-bg: #fff7ed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      display: flex;
+      height: 100vh;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .calculator {
+      background: #ffffff;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .display {
+      background: var(--display);
+      color: var(--display-text);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      font-size: 2rem;
+      word-wrap: break-word;
+      min-height: 3rem;
+      text-align: right;
+    }
+    .chat {
+      background: var(--chat-bg);
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      min-height: 2.5rem;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      color: #92400e;
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem;
+    }
+    button {
+      padding: 1rem;
+      font-size: 1.25rem;
+      border: none;
+      border-radius: 0.5rem;
+      background: var(--button);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: var(--button-hover); }
+    button.operator { background: var(--operator); }
+    button.operator:hover { background: var(--operator-hover); }
+    button.equal { background: var(--equal); }
+    button.equal:hover { background: var(--equal-hover); }
+  </style>
+</head>
+<body>
+  <div class="calculator">
+    <div id="display" class="display">0</div>
+    <div id="chat" class="chat">計算の準備はいい？</div>
+    <div class="buttons">
+      <button data-action="clear" class="operator">C</button>
+      <button data-action="delete" class="operator">⌫</button>
+      <button data-value="/" class="operator">÷</button>
+      <button data-value="*" class="operator">×</button>
+      <button data-value="7">7</button>
+      <button data-value="8">8</button>
+      <button data-value="9">9</button>
+      <button data-value="-" class="operator">−</button>
+      <button data-value="4">4</button>
+      <button data-value="5">5</button>
+      <button data-value="6">6</button>
+      <button data-value="+" class="operator">＋</button>
+      <button data-value="1">1</button>
+      <button data-value="2">2</button>
+      <button data-value="3">3</button>
+      <button data-action="equals" class="equal" style="grid-row: 5 / span 2; grid-column: 4;">=</button>
+      <button data-value="0" style="grid-column: 1 / span 2;">0</button>
+      <button data-value=".">.</button>
+    </div>
+  </div>
+  <script>
+    const display = document.getElementById('display');
+    const chat = document.getElementById('chat');
+    const buttons = document.querySelectorAll('button');
+
+    let current = '0';
+    let lastInput = null;
+    let repeatCount = 0;
+    let lastWasEquals = false; // 直前が = だったか
+
+    const messages = {
+      number: [
+        'ほう、%v ね…',
+        '次は何かな？',
+        'ちゃくちゃくと入力中。',
+        '数字好きだね！',
+        'その数字、いいセンスしてるね！',
+        '今日は%vを選ぶ気分なの？',
+        'んー、%v かぁ…。面白いチョイスだね！'
+      ],
+      operator: [
+        '計算モードON！',
+        'おっと演算子だ。',
+        'その手できたか…',
+        'まだまだいけるよ！',
+        '計算がヒートアップしてきたね！',
+        'これでどうなるのかな？',
+        'もう少しで答えに辿り着きそう！'
+      ],
+      equals: [
+        'えいっ！答えは %r',
+        '計算完了！➡ %r',
+        'よし、%r で合ってる？',
+        'ドヤァ… %r だよ！',
+        'ほら、やればできるじゃん！答えは %r',
+        '見事な計算結果だよ！',
+        'ちょっとドキドキしたけど、%rで合ってる？',
+        'そろそろ電卓に休憩くれてもいいんじゃない？',
+        'こんなに計算する人、初めて見たかも！',
+        '計算大好きだね、感心しちゃう！'
+      ],
+      repeat: [
+        'そんなに押さないで。。',
+        'ちょっ…押しすぎ！',
+        'ボタン潰れちゃうよ…',
+        'キーボードが壊れちゃうってば！',
+        'ストレス溜まってるの？',
+        'やさしく押してくれると嬉しいな…'
+      ],
+      clearAfterEquals: [
+        'えぇまた計算？',
+        'そんなに消しちゃうの？',
+        'もう疲れた。。計算ばっかり…'
+      ],
+      clear: [
+        'リセット完了！もっと入力して！',
+        '全部消しちゃった…',
+        '白紙に戻ったよ。'
+      ],
+      delete: [
+        'ひと桁削除…痛っ！',
+        '後ろから消していく作戦ね。',
+        '取り消し了解！',
+        'あぁっ、せっかくの数字が…',
+        'そこ消すの！？意外…',
+        '消しても後悔しないでね！'
+      ],
+      error: [
+        'え？計算無理だった…ごめん',
+        'バグっちゃった？',
+        'むむ、解けない式かも…',
+        'うーん…これは難しいなぁ',
+        'ごめん、私には解けない問題かも…',
+        '入力ミスかも？ちょっと確認してみて'
+      ]
+    };
+
+    const random = arr => arr[Math.floor(Math.random() * arr.length)];
+    const updateDisplay = () => display.textContent = current;
+    const speak = (type, value, result) => {
+      const template = random(messages[type] || []);
+      if (template) chat.textContent = template.replace('%v', value ?? '').replace('%r', result ?? '');
+    };
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const value = btn.dataset.value;
+        const action = btn.dataset.action;
+
+        // ================= 重複押下チェック =================
+        const inputIdentifier = action || value;
+        if (inputIdentifier === lastInput) {
+          repeatCount++;
+        } else {
+          repeatCount = 1;
+          lastInput = inputIdentifier;
+        }
+        const showRepeat = repeatCount >= 5 && action !== 'equals' && action !== 'clear';
+        // ====================================================
+
+        if (action === 'clear') {
+          speak(lastWasEquals ? 'clearAfterEquals' : 'clear');
+          current = '0';
+          lastWasEquals = false;
+        } else if (action === 'delete') {
+          current = current.slice(0, -1) || '0';
+          speak('delete');
+          lastWasEquals = false;
+        } else if (action === 'equals') {
+          try {
+            const result = String(Function('return ' + current)());
+            speak('equals', null, result);
+            current = result;
+          } catch {
+            current = 'Error';
+            speak('error');
+          }
+          lastWasEquals = true;
+        } else {
+          if (current === '0' && value !== '.' && !isNaN(value)) {
+            current = value;
+          } else {
+            current += value;
+          }
+          speak(isNaN(value) ? 'operator' : 'number', value);
+          lastWasEquals = false;
+        }
+
+        updateDisplay();
+        if (showRepeat) speak('repeat');
+      });
+    });
+
+    updateDisplay();
+  </script>
+</body>
+</html>
